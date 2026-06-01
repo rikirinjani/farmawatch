@@ -179,18 +179,25 @@ export default function DashboardClient({
     }));
   }, [provinceCityData]);
 
+  function sanitizeCell(value: string): string {
+    if (typeof value === "string" && /^[=+\-@]/.test(value)) {
+      return "'" + value;
+    }
+    return value;
+  }
+
   function exportToExcel() {
     const exportData = filteredTickets.map((t) => ({
-      "ID Tiket": t.id,
-      Kategori: t.category?.name || "-",
-      Provinsi: t.province,
-      "Kota/Kabupaten": t.city,
-      Deskripsi: t.description || "-",
-      Status: t.status,
-      "Ringkasan AI": t.ai_summary || "-",
-      Tags: t.ai_tags?.join(", ") || "-",
-      "Tanggal Laporan": t.created_at,
-      "Tanggal Selesai": t.resolved_at || "-",
+      "ID Tiket": sanitizeCell(t.id),
+      Kategori: sanitizeCell(t.category?.name || "-"),
+      Provinsi: sanitizeCell(t.province),
+      "Kota/Kabupaten": sanitizeCell(t.city),
+      Deskripsi: sanitizeCell(t.description || "-"),
+      Status: sanitizeCell(t.status),
+      "Ringkasan AI": sanitizeCell(t.ai_summary || "-"),
+      Tags: sanitizeCell(t.ai_tags?.join(", ") || "-"),
+      "Tanggal Laporan": sanitizeCell(t.created_at),
+      "Tanggal Selesai": sanitizeCell(t.resolved_at || "-"),
       "Jenis Laporan": t.is_anonymous ? "Anonim" : "Terdaftar",
     }));
 

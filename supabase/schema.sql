@@ -213,14 +213,16 @@ CREATE POLICY "Users update own profile" ON profiles
     AND status = (SELECT status FROM profiles WHERE id = auth.uid())
   );
 
--- Admins can update profiles (but cannot set role to 'superadmin' or change own role)
+-- Admins can update profiles.
+-- Superadmins have full access.
+-- Regular admins can update non-privileged fields (status, province, city, whatsapp)
+-- but cannot change role (their own or others').
 CREATE POLICY "Admins update profiles" ON profiles
   FOR UPDATE USING (public.is_admin(auth.uid()))
   WITH CHECK (
     public.is_superadmin(auth.uid())
     OR (
-      role != 'superadmin'
-      AND (id != auth.uid() OR role = (SELECT role FROM profiles WHERE id = auth.uid()))
+      role = (SELECT p.role FROM profiles p WHERE p.id = profiles.id)
     )
   );
 
@@ -290,9 +292,27 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('ticket-images', 'ticket-images', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Public read of ticket images
-CREATE POLICY "Public read ticket images" ON storage.objects
-  FOR SELECT USING (bucket_id = 'ticket-images');
+-- Read ticket images:
+--   - Public can read images belonging to anonymous tickets
+--   - Authenticated submitters can read their own ticket images
+--   - Admins can read all
+CREATE POLICY "Read ticket images" ON storage.objects
+  FOR SELECT USING (
+    bucket_id = 'ticket-images'
+    AND (
+      public.is_admin(auth.uid())
+      OR (auth.role() = 'authenticated' AND EXISTS (
+        SELECT 1 FROM tickets
+        WHERE id::text = split_part(name, '/', 2)
+        AND submitted_by = auth.uid()
+      ))
+      OR EXISTS (
+        SELECT 1 FROM tickets
+        WHERE id::text = split_part(name, '/', 2)
+        AND is_anonymous = true
+      )
+    )
+  );
 
 -- Restrict uploads: only to ticket-images bucket, only image mime types, max 8 MB.
 CREATE POLICY "Restricted upload ticket images" ON storage.objects

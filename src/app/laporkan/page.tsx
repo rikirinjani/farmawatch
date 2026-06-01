@@ -8,6 +8,7 @@ import { safeExternalUrl } from "@/lib/utils";
 import { TicketCategory } from "@/types";
 import toast from "react-hot-toast";
 import { Upload, X, Info } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 
 const MAX_IMAGES = 3;
 const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8 MB
@@ -139,7 +140,7 @@ export default function LaporkanPage() {
     for (let i = 0; i < uploadedImages.length; i++) {
       const file = uploadedImages[i];
       const ext = file.name.split(".").pop();
-      const path = `tickets/${ticketId}/image_${i}.${ext}`;
+      const path = `tickets/${ticketId}/${uuidv4()}.${ext}`;
       const { data, error } = await supabase.storage
         .from("ticket-images")
         .upload(path, file, {
@@ -183,39 +184,40 @@ export default function LaporkanPage() {
       }
       const hyperlinks = validLinks.length > 0 ? validLinks : null;
 
-      // Insert ticket record first to get the ID
-      const { data: ticket, error: ticketError } = await supabase
-        .from("tickets")
-        .insert({
+      // Create ticket via server API (bypasses client-side RLS)
+      const res = await fetch("/api/submit-ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           submitted_by: isAnonymous ? null : user?.id,
           is_anonymous: isAnonymous,
           category_id: form.categoryId,
           province: form.province,
           city: form.city,
           description: form.description,
-          drug_product: null, // reserved for future dropdown
           hyperlinks,
-          image_urls: [],
-          status: "submitted",
-        })
-        .select()
-        .single();
+        }),
+      });
 
-      if (ticketError) {
-        toast.error("Gagal mengirim laporan: " + ticketError.message);
+      const ticketResult = await res.json();
+      if (!res.ok) {
+        toast.error("Gagal mengirim laporan: " + (ticketResult.error || "Unknown error"));
         setLoading(false);
         return;
       }
 
+      const ticket = { id: ticketResult.ticketId };
+
       // Upload images now that we have the ticket ID
       const imageUrls = await uploadImagesToStorage(ticket.id);
 
-      // Update ticket with image URLs
+      // Update ticket with image URLs via server API
       if (imageUrls.length > 0) {
-        await supabase
-          .from("tickets")
-          .update({ image_urls: imageUrls })
-          .eq("id", ticket.id);
+        await fetch("/api/submit-ticket", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticketId: ticket.id, image_urls: imageUrls }),
+        });
       }
 
       toast.success("Laporan berhasil dikirim! Tim kami akan meninjau laporan Anda.");

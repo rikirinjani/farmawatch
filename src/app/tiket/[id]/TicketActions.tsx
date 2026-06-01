@@ -16,7 +16,7 @@ function sendNotification(ticketId: string, action: string) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ticketId, action }),
-  }).catch(() => {});
+  }).catch((e) => console.error("Notification failed for ticket", ticketId, e));
 }
 
 export default function TicketActions({ ticket }: Props) {

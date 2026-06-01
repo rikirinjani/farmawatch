@@ -1,9 +1,31 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+const CSP_HEADER = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' blob: data: https://*.supabase.co",
+  "font-src 'self'",
+  "connect-src 'self' https://*.supabase.co https://api.anthropic.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   let supabaseResponse = NextResponse.next({ request });
+
+  // HTTPS redirect (production only)
+  if (
+    process.env.NODE_ENV === "production" &&
+    request.headers.get("x-forwarded-proto") === "http"
+  ) {
+    const url = request.nextUrl.clone();
+    url.protocol = "https";
+    return NextResponse.redirect(url, 301);
+  }
 
   try {
     const supabase = createServerClient(
@@ -56,6 +78,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
   }
+
+  supabaseResponse.headers.set("Content-Security-Policy", CSP_HEADER);
+  supabaseResponse.headers.set("X-Content-Type-Options", "nosniff");
+  supabaseResponse.headers.set("X-Frame-Options", "DENY");
+  supabaseResponse.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 
   return supabaseResponse;
 }
