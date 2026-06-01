@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function getServiceClient() {
+function getClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !key) {
+  if (!url) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set");
+  }
+
+  // Prefer service role key (bypasses RLS); fall back to anon key
+  const key = serviceKey || anonKey;
+  if (!key) {
     throw new Error(
-      "Missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL env vars"
+      "No Supabase API key available. Set SUPABASE_SERVICE_ROLE_KEY in Vercel env vars."
     );
   }
 
@@ -20,7 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const { data: ticket, error } = await getServiceClient()
+    const { data: ticket, error } = await getClient()
       .from("tickets")
       .insert({
         submitted_by: body.submitted_by ?? null,
@@ -64,7 +71,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { error } = await getServiceClient()
+    const { error } = await getClient()
       .from("tickets")
       .update({ image_urls })
       .eq("id", ticketId);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { provinsiData } from "@/lib/indonesia-data";
 import { safeExternalUrl } from "@/lib/utils";
@@ -15,6 +15,7 @@ const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8 MB
 
 export default function LaporkanPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -24,14 +25,22 @@ export default function LaporkanPage() {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
 
-  const [form, setForm] = useState({
-    categoryId: "",
-    province: "",
-    city: "",
-    description: "",
-    hyperlinks: "",
-  });
+  const initialForm = { categoryId: "", province: "", city: "", description: "", hyperlinks: "" };
+  const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function resetForm() {
+    setForm(initialForm);
+    setIsAnonymous(false);
+    setErrors({});
+    setUploadedImages([]);
+    setImagePreviews([]);
+  }
+
+  // Reset form on navigation to /laporkan
+  useEffect(() => {
+    resetForm();
+  }, [pathname]);
 
   // drug_product field reserved for future use
   // const [drugProduct, setDrugProduct] = useState("");
@@ -220,6 +229,7 @@ export default function LaporkanPage() {
         });
       }
 
+      resetForm();
       toast.success("Laporan berhasil dikirim! Tim kami akan meninjau laporan Anda.");
       router.push("/");
     } catch (err: any) {
