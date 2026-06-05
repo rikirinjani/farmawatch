@@ -8,7 +8,6 @@ import { safeExternalUrl } from "@/lib/utils";
 import { TicketCategory } from "@/types";
 import toast from "react-hot-toast";
 import { Upload, X, Info } from "lucide-react";
-import { v4 as uuidv4 } from "uuid";
 
 const MAX_IMAGES = 3;
 const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8 MB
@@ -148,25 +147,19 @@ export default function LaporkanPage() {
     const urls: string[] = [];
     for (let i = 0; i < uploadedImages.length; i++) {
       const file = uploadedImages[i];
-      const ext = file.name.split(".").pop();
-      const path = `tickets/${ticketId}/${uuidv4()}.${ext}`;
-      const { data, error } = await supabase.storage
-        .from("ticket-images")
-        .upload(path, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
+      const fd = new FormData();
+      fd.set("file", file);
+      fd.set("ticketId", ticketId);
 
-      if (error) {
-        toast.error(`Gagal upload gambar ${i + 1}: ${error.message}`);
+      const res = await fetch("/api/upload-image", { method: "POST", body: fd });
+      const result = await res.json();
+
+      if (!res.ok) {
+        toast.error(`Gagal upload gambar ${i + 1}: ${result.error || "Unknown error"}`);
         continue;
       }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("ticket-images").getPublicUrl(path);
-
-      urls.push(publicUrl);
+      urls.push(result.url);
     }
     return urls;
   }
