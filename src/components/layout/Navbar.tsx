@@ -32,6 +32,11 @@ export default function Navbar() {
       }
     };
     getUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      getUser();
+    });
+    return () => subscription.unsubscribe();
   }, [supabase]);
 
   const handleLogout = async () => {

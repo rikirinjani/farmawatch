@@ -6,6 +6,10 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import TicketActions from "./TicketActions";
 import AiTaggingResult from "./AiTaggingResult";
 
+type SubmitterInfo = { full_name: string; email: string } | null;
+type AcceptorInfo = { full_name: string } | null;
+type ResolverInfo = { full_name: string } | null;
+
 export default async function TiketDetailPage({
   params,
 }: {
@@ -35,7 +39,7 @@ export default async function TiketDetailPage({
   if (!ticket) notFound();
 
   // Access control: only submitter or admin can view
-  let profile: any = null;
+  let profile: { role: string } | null = null;
   if (user) {
     const { data } = await supabase
       .from("profiles")
@@ -57,6 +61,9 @@ export default async function TiketDetailPage({
     ticket.status === "accepted" ||
     ticket.status === "under_review" ||
     ticket.status === "resolved";
+
+  const submitter = ticket.submitter as SubmitterInfo;
+  const rejectionReason = ticket.rejection_reason as { id: string; label: string } | null;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -101,11 +108,11 @@ export default async function TiketDetailPage({
               {ticket.is_anonymous ? "Anonim" : "Terdaftar"}
             </p>
           </div>
-          {ticket.submitter && (
+          {submitter && (
             <div>
               <p className="text-gray-500">Pelapor</p>
               <p className="font-medium">
-                {(ticket.submitter as any)?.full_name || "-"}
+                {submitter?.full_name || "-"}
               </p>
             </div>
           )}
@@ -177,13 +184,13 @@ export default async function TiketDetailPage({
       )}
 
       {/* Rejection reason */}
-      {ticket.status === "rejected" && ticket.rejection_reason && (
+      {ticket.status === "rejected" && rejectionReason && (
         <div className="card p-6 mb-6 border-red-200 bg-red-50">
           <h2 className="font-semibold text-red-800 mb-2">
             Alasan Penolakan
           </h2>
           <p className="text-sm text-red-700">
-            {(ticket.rejection_reason as any)?.label || "-"}
+            {rejectionReason?.label || "-"}
           </p>
         </div>
       )}

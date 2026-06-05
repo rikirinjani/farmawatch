@@ -14,7 +14,6 @@ import {
   Cell,
   LineChart,
   Line,
-  Legend,
 } from "recharts";
 import * as XLSX from "xlsx";
 import {
@@ -81,8 +80,8 @@ export default function DashboardClient({
     return tickets.filter((t) => {
       if (filterProvince && t.province !== filterProvince) return false;
       if (filterCategory && t.category_id !== filterCategory) return false;
-      if (filterStartDate && t.created_at < filterStartDate) return false;
-      if (filterEndDate && t.created_at > filterEndDate + "T23:59:59")
+      if (filterStartDate && new Date(t.created_at) < new Date(filterStartDate)) return false;
+      if (filterEndDate && new Date(t.created_at) > new Date(filterEndDate + "T23:59:59"))
         return false;
       return true;
     });

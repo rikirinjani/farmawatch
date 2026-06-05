@@ -7,12 +7,16 @@ import {
   getStatusLabel,
 } from "@/lib/utils";
 import AdminTicketFilter from "./AdminTicketFilter";
+import AdminPagination from "./AdminPagination";
+
+const PAGE_SIZE = 20;
 
 interface SearchParams {
   status?: string;
   category?: string;
   province?: string;
   search?: string;
+  page?: string;
 }
 
 export default async function AdminTiketPage({
@@ -22,20 +26,51 @@ export default async function AdminTiketPage({
 }) {
   const supabase = createClient();
 
+  const currentPage = Math.max(1, Number(searchParams.page) || 1);
+
   // Fetch categories for filter
   const { data: categories } = await supabase
     .from("ticket_categories")
     .select("*")
     .eq("is_active", true);
 
-  // Build query
+  // Build count query (head = true for performance)
+  let countQuery = supabase
+    .from("tickets")
+    .select("*", { count: "exact", head: true });
+
+  if (searchParams.status) {
+    countQuery = countQuery.eq("status", searchParams.status);
+  }
+  if (searchParams.category) {
+    countQuery = countQuery.eq("category_id", searchParams.category);
+  }
+  if (searchParams.province) {
+    countQuery = countQuery.eq("province", searchParams.province);
+  }
+  if (searchParams.search) {
+    const safe = escapePostgrestFilter(searchParams.search);
+    if (safe.length > 0) {
+      countQuery = countQuery.or(
+        `description.ilike.%${safe}%,province.ilike.%${safe}%,city.ilike.%${safe}%`
+      );
+    }
+  }
+
+  const { count } = await countQuery;
+  const totalPages = Math.max(1, Math.ceil((count || 0) / PAGE_SIZE));
+
+  // Build data query
   let query = supabase
     .from("tickets")
     .select(
-      "*, category:ticket_categories(name), submitter:profiles!tickets_submitted_by_fkey(full_name)",
-      { count: "exact" }
+      "*, category:ticket_categories(name), submitter:profiles!tickets_submitted_by_fkey(full_name)"
     )
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(
+      (currentPage - 1) * PAGE_SIZE,
+      currentPage * PAGE_SIZE - 1
+    );
 
   if (searchParams.status) {
     query = query.eq("status", searchParams.status);
@@ -55,7 +90,7 @@ export default async function AdminTiketPage({
     }
   }
 
-  const { data: tickets, count } = await query;
+  const { data: tickets } = await query;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -146,11 +181,11 @@ export default async function AdminTiketPage({
             </tbody>
           </table>
         </div>
-        {count !== undefined && (
-          <div className="px-4 py-3 border-t border-gray-200 text-sm text-gray-500">
-            Total: {count} tiket
-          </div>
-        )}
+        <AdminPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalCount={count || 0}
+        />
       </div>
     </div>
   );

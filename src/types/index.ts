@@ -68,18 +68,4 @@ export interface Province {
   cities: string[];
 }
 
-export const STATUS_LABELS: Record<TicketStatus, string> = {
-  submitted: "Terkirim",
-  accepted: "Diterima",
-  under_review: "Dalam Peninjauan",
-  resolved: "Selesai",
-  rejected: "Ditolak",
-};
 
-export const STATUS_COLORS: Record<TicketStatus, string> = {
-  submitted: "badge-submitted",
-  accepted: "badge-accepted",
-  under_review: "badge-review",
-  resolved: "badge-resolved",
-  rejected: "badge-rejected",
-};

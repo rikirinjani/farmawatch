@@ -1,11 +1,21 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Toaster } from "react-hot-toast";
 
-const inter = Inter({ subsets: ["latin"] });
+const headingFont = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-heading",
+});
+
+const bodyFont = Source_Sans_3({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-body",
+});
 
 export const metadata: Metadata = {
   title: "FarmaWatch - Platform Pengawasan Farmasi Indonesia",
@@ -19,8 +29,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id">
-      <body className={`${inter.className} min-h-screen flex flex-col bg-gray-50`}>
+    <html lang="id" className={`${headingFont.variable} ${bodyFont.variable}`}>
+      <body className="flex min-h-screen flex-col bg-gradient-to-br from-teal-50 via-white to-amber-50 bg-fixed">
         <Navbar />
         <main className="flex-1">{children}</main>
         <Footer />

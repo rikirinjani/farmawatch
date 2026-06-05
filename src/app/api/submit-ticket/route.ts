@@ -1,36 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
-function getClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set");
-  }
-
-  // Prefer service role key (bypasses RLS); fall back to anon key
-  const key = serviceKey || anonKey;
-  if (!key) {
-    throw new Error(
-      "No Supabase API key available. Set SUPABASE_SERVICE_ROLE_KEY in Vercel env vars."
-    );
-  }
-
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
     const body = await request.json();
 
-    const { data: ticket, error } = await getClient()
+    // Authenticated: use server client (RLS enforces submitted_by = auth.uid())
+    // Anonymous: use service role key (RLS blocks anon inserts)
+    const client = user ? supabase : getServiceClient();
+    const submittedBy = user?.id ?? null;
+
+    const { data: ticket, error } = await client
       .from("tickets")
       .insert({
-        submitted_by: body.submitted_by ?? null,
+        submitted_by: submittedBy,
         is_anonymous: !!body.is_anonymous,
         category_id: body.category_id,
         province: body.province,
@@ -61,6 +55,10 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const supabase = createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const svc = getServiceClient();
+
     const body = await request.json();
     const { ticketId, image_urls } = body;
 
@@ -71,7 +69,40 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { error } = await getClient()
+    // Use service role to fetch ticket (anonymous tickets not readable via RLS)
+    const { data: ticket, error: fetchError } = await svc
+      .from("tickets")
+      .select("submitted_by, image_urls")
+      .eq("id", ticketId)
+      .single();
+
+    if (fetchError || !ticket) {
+      return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+    }
+
+    const isAnonymousTicket = ticket.submitted_by === null;
+    const isOwner = user !== null && ticket.submitted_by === user.id;
+    const isAdmin = user !== null && await (async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      return profile?.role === "admin" || profile?.role === "superadmin";
+    })();
+
+    if (!isOwner && !isAdmin && !isAnonymousTicket) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    if (isAnonymousTicket && !user) {
+      const existingUrls = ticket.image_urls as string[] | null;
+      if (existingUrls && existingUrls.length > 0) {
+        return NextResponse.json({ error: "Already updated" }, { status: 409 });
+      }
+    }
+
+    const { error } = await svc
       .from("tickets")
       .update({ image_urls })
       .eq("id", ticketId);
